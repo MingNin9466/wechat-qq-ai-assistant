@@ -1,0 +1,31 @@
+{
+  "name": "wechat-deepseek-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "微信群里的 DeepSeek 助手：多模态、联网、B站、分层记忆、日记、可自定义人格",
+  "engines": {
+    "node": ">=22.6.0"
+  },
+  "scripts": {
+    "doctor": "node src/cli/doctor.ts",
+    "demo": "node src/cli/demo.ts",
+    "start": "node src/main.ts",
+    "start:wxauto": "node src/main.ts --adapter=wxauto",
+    "configure": "node configure.mjs",
+    "bridge": "node bridge/run.mjs",
+    "distill": "node src/cli/distill.ts",
+    "smoke": "node tests/smoke.ts",
+    "smoke:wxauto": "node tests/wxauto.smoke.ts",
+    "typecheck": "tsc --noEmit",
+    "backup": "node src/cli/backup.ts"
+  },
+  "optionalDependencies": {
+    "@wechatferry/agent": "0.0.26",
+    "@wechatferry/core": "0.0.26"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.7.0"
+  }
+}

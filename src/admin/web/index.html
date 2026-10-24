@@ -1,0 +1,890 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>微信群助手 · 后台</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel2: #1e232c; --line: #2a303b;
+    --text: #e6e8ee; --dim: #8b93a7; --accent: #4f8cff; --ok: #35c48f; --warn: #e0a02f; --err: #e5534b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; }
+  header { display: flex; align-items: center; gap: 16px; padding: 14px 20px;
+    border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 10; }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  .badge { padding: 2px 8px; border-radius: 10px; font-size: 12px; background: var(--panel2); color: var(--dim); }
+  .badge.on { background: rgba(53,196,143,.15); color: var(--ok); }
+  .badge.off { background: rgba(229,83,75,.15); color: var(--err); }
+  nav { display: flex; gap: 4px; padding: 0 20px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  nav button { background: none; border: none; color: var(--dim); padding: 12px 14px; cursor: pointer;
+    border-bottom: 2px solid transparent; font-size: 14px; }
+  nav button.active { color: var(--text); border-bottom-color: var(--accent); }
+  main { padding: 20px; max-width: 1100px; margin: 0 auto; }
+  .tab { display: none; } .tab.active { display: block; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .card h2 { font-size: 14px; margin: 0 0 12px; color: var(--dim); font-weight: 500; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  .stat { background: var(--panel2); border-radius: 8px; padding: 12px; }
+  .stat .k { color: var(--dim); font-size: 12px; }
+  .stat .v { font-size: 20px; font-weight: 600; margin-top: 4px; }
+  label.row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--line); }
+  label.row:last-child { border-bottom: none; }
+  label.row .name { flex: 1; }
+  label.row .hint { display: block; color: var(--dim); font-size: 12px; }
+  input[type=text], input[type=number], select, textarea {
+    background: var(--panel2); border: 1px solid var(--line); color: var(--text);
+    border-radius: 6px; padding: 6px 8px; font: inherit; }
+  input[type=number] { width: 100px; }
+  textarea { width: 100%; min-height: 90px; resize: vertical; }
+  input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--accent); }
+  button.btn { background: var(--accent); color: #fff; border: none; border-radius: 6px;
+    padding: 6px 14px; cursor: pointer; font: inherit; }
+  button.btn.ghost { background: var(--panel2); color: var(--dim); border: 1px solid var(--line); }
+  button.btn:disabled { opacity: .5; cursor: default; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--dim); font-weight: 500; }
+  .lv-error { color: var(--err); } .lv-warn { color: var(--warn); } .lv-info { color: var(--dim); }
+  .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+  .toast { position: fixed; right: 20px; bottom: 20px; background: var(--panel2); border: 1px solid var(--line);
+    padding: 10px 16px; border-radius: 8px; opacity: 0; transition: .25s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+  .empty { color: var(--dim); padding: 20px 0; }
+  .pill { display: inline-block; padding: 1px 7px; border-radius: 8px; background: var(--panel2); color: var(--dim); font-size: 12px; margin-left: 6px; }
+  details.card > summary { cursor: pointer; font-size: 14px; color: var(--dim); font-weight: 500; list-style: none; }
+  details.card > summary::before { content: '▸ '; color: var(--accent); }
+  details.card[open] > summary::before { content: '▾ '; }
+  details.card[open] > summary { margin-bottom: 10px; color: var(--text); }
+</style>
+</head>
+<body>
+<header>
+  <h1>微信群助手 · 后台</h1>
+  <span id="badgeConn" class="badge">连接中…</span>
+  <span id="badgeSelf" class="badge"></span>
+  <span id="badgeMode" class="badge"></span>
+</header>
+
+<nav>
+  <button data-tab="overview" class="active">概览</button>
+  <button data-tab="settings">设定</button>
+  <button data-tab="persona">人格</button>
+  <button data-tab="logs">日志</button>
+  <button data-tab="memory">记忆</button>
+  <button data-tab="diary">日记</button>
+  <button data-tab="stickers">表情包</button>
+  <button data-tab="debug">调试</button>
+</nav>
+
+<main>
+  <!-- 概览 -->
+  <section id="tab-overview" class="tab active">
+    <div class="card">
+      <h2>快捷开关</h2>
+      <div class="grid" id="quickSwitch"></div>
+    </div>
+    <div class="card">
+      <h2>运行状态</h2>
+      <div class="grid" id="statGrid"></div>
+    </div>
+    <div class="card">
+      <h2>对话热度（近 7 天）</h2>
+      <table id="activityTable"><thead><tr><th>日期</th><th>消息数</th><th>机器人回复</th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="card">
+      <h2>各会话用量（近 7 天）</h2>
+      <table id="chatUsageTable"><thead><tr><th>会话</th><th>调用</th><th>输入</th><th>输出</th><th>花费</th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="card">
+      <h2>近 7 天用量</h2>
+      <table id="usageTable"><thead><tr><th>日期</th><th>调用</th><th>输入 tokens</th><th>输出 tokens</th><th>花费</th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="card">
+      <h2>快速操作</h2>
+      <div class="grid">
+        <div>
+          <div class="k" style="color:var(--dim);font-size:12px;margin-bottom:6px;">触发模式</div>
+          <select id="quickTrigger">
+            <option value="at">只有 @ 才回</option>
+            <option value="prefix">/ 开头才回</option>
+            <option value="all">全部回复</option>
+            <option value="off">关闭</option>
+          </select>
+        </div>
+        <div>
+          <div class="k" style="color:var(--dim);font-size:12px;margin-bottom:6px;">每日预算（元）</div>
+          <input type="number" id="quickBudget" min="0" max="200" step="1" />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 设定 -->
+  <section id="tab-settings" class="tab">
+    <div class="card"><h2>全部设定（改完立即生效，无需重启）</h2><div id="settingsBox"></div></div>
+  </section>
+
+  <!-- 人格 -->
+  <section id="tab-persona" class="tab">
+    <div class="card">
+      <h2>选择会话</h2>
+      <div class="toolbar"><button class="btn" id="btnSyncWhale">同步养鱼日记</button></div>
+      <div class="toolbar"><button class="btn" id="personaApplyAll">应用到所有会话</button></div>
+      <div class="toolbar">
+        <select id="personaChat"></select>
+        <button class="btn ghost" id="personaReload">刷新</button>
+      </div>
+      <div id="presetRow" class="toolbar"></div>
+    </div>
+    <div class="card">
+      <h2>人格设定</h2>
+      <label class="row"><span class="name">名字</span><input type="text" id="pName" /></label>
+      <label class="row"><span class="name">一句话人设</span></label>
+      <textarea id="pStyle" style="margin-bottom:10px"></textarea>
+      <label class="row"><span class="name">行为准则（每行一条）</span></label>
+      <textarea id="pRules" style="margin-bottom:10px"></textarea>
+      <label class="row"><span class="name">温度（0~1.5）</span><input type="number" id="pTemp" min="0" max="1.5" step="0.05" /></label>
+      <label class="row"><span class="name">单条字数上限</span><input type="number" id="pMax" min="50" max="2000" step="50" /></label>
+      <label class="row"><span class="name">允许 emoji</span><input type="checkbox" id="pEmoji" /></label>
+      <div class="toolbar" style="margin-top:14px">
+        <button class="btn" id="personaSave">保存人格</button>
+        <button class="btn ghost" id="personaReset">恢复默认</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 日志 -->
+  <section id="tab-logs" class="tab">
+    <div class="card">
+      <div class="toolbar">
+        <select id="logLevel">
+          <option value="all">全部级别</option>
+          <option value="error">error</option>
+          <option value="warn">warn</option>
+          <option value="info">info</option>
+          <option value="debug">debug</option>
+        </select>
+        <button class="btn ghost" id="logReload">刷新</button>
+      </div>
+      <table id="logTable"><thead><tr><th style="width:150px">时间</th><th style="width:70px">级别</th><th style="width:120px">模块</th><th>内容</th></tr></thead><tbody></tbody></table>
+    </div>
+  </section>
+
+  <!-- 记忆 -->
+  <section id="tab-memory" class="tab">
+    <div class="card">
+      <div class="toolbar">
+        <select id="memChat"></select>
+        <input type="text" id="memQuery" placeholder="搜索记忆…" />
+        <button class="btn ghost" id="memReload">搜索 / 刷新</button>
+      </div>
+      <div class="toolbar">
+        <input type="text" id="memNew" placeholder="手动新增一条记忆，例如：每周三晚上 8 点开组会" style="flex:1" />
+        <button class="btn" id="memAdd">记住</button>
+      </div>
+      <table id="memTable"><thead><tr><th style="width:60px">ID</th><th>内容</th><th style="width:80px">权重</th><th style="width:70px">操作</th></tr></thead><tbody></tbody></table>
+    </div>
+  </section>
+
+  <!-- 日记 -->
+  <section id="tab-diary" class="tab">
+    <div class="card">
+      <div class="toolbar">
+        <select id="diaryChat"></select>
+        <button class="btn ghost" id="diaryReload">刷新</button>
+      </div>
+      <div id="diaryList"></div>
+    </div>
+  </section>
+
+    <div class="card">
+      <h2>待确认的共享记忆</h2>
+      <div class="empty" id="shareHint">模型提炼出的记忆会先出现在这里，你点「通过」才会让所有聊天共用。</div>
+      <div id="shareList"></div>
+    </div>
+  <!-- 表情包 -->
+  <section id="tab-stickers" class="tab">
+    <div class="card">
+      <div class="toolbar">
+        <span id="stickerStats" class="muted"></span>
+        <button class="btn" id="stickerUploadBtn">上传图片</button>
+        <input type="file" id="stickerFile" accept="image/*" multiple style="display:none" />
+        <button class="btn ghost" id="stickerSelectAll">全选</button>
+        <button class="btn ghost" id="stickerClearSel">取消选中</button>
+        <button class="btn" id="stickerDeleteSel" style="background:#7f1d1d">删除选中</button>
+        <button class="btn ghost" id="stickerReload">刷新</button>
+      </div>
+      <div class="empty" id="stickerSelInfo">勾选图片可批量删除</div>
+      <div id="stickerGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px;margin-top:12px"></div>
+    </div>
+    <div class="card">
+      <h2>回收站</h2>
+      <div id="stickerTrash" class="muted"></div>
+    </div>
+  </section>
+
+  <!-- 调试 -->
+  <section id="tab-debug" class="tab">
+    <div class="card">
+      <h2>手动测试</h2>
+      <div class="toolbar">
+        <select id="dbgChat"></select>
+        <input type="text" id="dbgText" placeholder="要发的文字…" style="flex:1;min-width:220px" />
+      </div>
+      <div class="toolbar">
+        <button class="btn" id="dbgSend">发文字</button>
+        <button class="btn ghost" id="dbgVoice">发语音</button>
+        <button class="btn ghost" id="dbgSticker">随机表情包</button>
+        <button class="btn ghost" id="dbgBrowse">刷个视频学习</button>
+        <button class="btn ghost" id="dbgSyncBili">同步B站信笺</button>
+        <button class="btn ghost" id="dbgRefresh">刷新桥接状态</button>
+      </div>
+      <div class="empty" id="dbgResult">选一个群，点上面的按钮试试。</div>
+    </div>
+    <div class="card">
+      <h2>桥接状态</h2>
+      <pre id="bridgeBox" class="mono" style="white-space:pre-wrap;color:var(--dim);margin:0"></pre>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const api = async (p, opt) => {
+  const r = await fetch(p, opt);
+  const j = await r.json().catch(() => ({ ok: false, error: 'bad json' }));
+  if (!r.ok || j.ok === false) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+};
+let toastTimer;
+function toast(msg, bad) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.style.color = bad ? 'var(--err)' : 'var(--ok)';
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// ---------- 导航 ----------
+document.querySelectorAll('nav button').forEach((b) => {
+  b.onclick = () => {
+    document.querySelectorAll('nav button').forEach((x) => x.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach((x) => x.classList.remove('active'));
+    b.classList.add('active');
+    $('#tab-' + b.dataset.tab).classList.add('active');
+    const t = b.dataset.tab;
+    if (t === 'logs') loadLogs();
+    if (t === 'memory') { loadMemory(); loadShareCandidates(); }
+    if (t === 'diary') loadDiary();
+    if (t === 'stickers') loadStickers();
+    if (t === 'debug') loadDebug();
+    if (t === 'settings') loadSettings();
+    if (t === 'persona') loadPersonaChats();
+  };
+});
+
+// ---------- 概览 ----------
+const QUICK_SWITCHES = [
+  ['paused', '暂停全部回复', '打开后完全不说话'],
+  ['featureVision', '看图', '图片/表情包识别'],
+  ['featureBilibili', 'B 站', '链接信息 + 视频内容'],
+  ['featureSticker', '表情包', '回复时附一张'],
+  ['featureSearch', '联网', '需要时自动查'],
+  ['pauseWhenFullscreen', '全屏暂停', '打游戏时不动'],
+];
+
+async function loadQuickSwitches() {
+  try {
+    const { settings } = await api('/api/settings');
+    const map = new Map(settings.map((s) => [s.key, s]));
+    $('#quickSwitch').innerHTML = QUICK_SWITCHES.map(([key, label, hint]) => {
+      const s = map.get(key);
+      if (!s) return '';
+      return `<label class="stat" style="cursor:pointer;display:flex;gap:10px;align-items:center">
+        <input type="checkbox" data-qs="${key}" ${s.value ? 'checked' : ''} />
+        <span><div style="font-weight:600;color:var(--text)">${label}</div>
+        <div style="font-size:12px;color:var(--dim)">${hint}</div></span></label>`;
+    }).join('');
+    document.querySelectorAll('[data-qs]').forEach((el) => {
+      el.onchange = async () => {
+        const key = el.dataset.qs;
+        try {
+          await api('/api/settings', { method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ key, value: el.checked }) });
+          toast((el.checked ? '已开启：' : '已关闭：') + key);
+          loadStatus();
+        } catch (e) { toast(e.message, true); el.checked = !el.checked; }
+      };
+    });
+  } catch (e) { /* ignore */ }
+}
+
+async function loadStatus() {
+  try {
+    const s = await api('/api/status');
+    const conn = $('#badgeConn');
+    conn.textContent = s.connected ? '已连接' : '未连接';
+    conn.className = 'badge ' + (s.connected ? 'on' : 'off');
+    $('#badgeSelf').textContent = s.self ? ('账号 ' + s.self.name) : '';
+    $('#badgeMode').textContent = '触发 ' + s.triggerMode;
+    const up = s.uptimeSec;
+    const upStr = up > 3600 ? (up / 3600).toFixed(1) + ' 小时' : Math.floor(up / 60) + ' 分钟';
+    const cards = [
+      ['接入方式', s.adapter, ''],
+      ['模型配置', s.configured ? '已配置' : '未配置', s.configured ? 'var(--ok)' : 'var(--err)'],
+      ['运行时长', upStr, ''],
+      ['今日调用', s.today.calls, ''],
+      ['今日花费', '¥' + s.today.cost.toFixed(4), s.today.cost > s.budget * 0.8 ? 'var(--warn)' : ''],
+      ['今日预算', '¥' + s.budget, ''],
+      ['收到消息', s.stats.received, ''],
+      ['已回复', s.stats.replied, ''],
+      ['跳过', s.stats.skipped, ''],
+      ['错误', s.stats.errors, s.stats.errors ? 'var(--err)' : ''],
+      ['近7天花费', '¥' + s.week.cost.toFixed(3), ''],
+      ['Node', s.node, ''],
+    ];
+    $('#statGrid').innerHTML = cards.map(([k, v, c]) =>
+      `<div class="stat"><div class="k">${k}</div><div class="v" style="color:${c || 'var(--text)'}">${esc(v)}</div></div>`).join('');
+    $('#quickTrigger').value = s.triggerMode;
+    $('#quickBudget').value = s.budget;
+  } catch (e) {
+    $('#badgeConn').textContent = '连接失败';
+    $('#badgeConn').className = 'badge off';
+  }
+}
+
+async function loadUsage() {
+  try {
+    const u = await api('/api/usage');
+    $('#usageTable tbody').innerHTML = u.days.map((d) =>
+      `<tr><td>${d.date}</td><td>${d.calls}</td><td>${d.inTok}</td><td>${d.outTok}</td><td>¥${d.cost.toFixed(4)}</td></tr>`).join('');
+  } catch (e) { /* ignore */ }
+}
+
+$('#quickTrigger').onchange = async () => {
+  try { await api('/api/settings', { method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ key: 'triggerMode', value: $('#quickTrigger').value }) });
+    toast('已切换到 ' + $('#quickTrigger').value); loadStatus();
+  } catch (e) { toast(e.message, true); }
+};
+$('#quickBudget').onchange = async () => {
+  try { await api('/api/settings', { method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ key: 'dailyBudgetCny', value: Number($('#quickBudget').value) }) });
+    toast('预算已更新'); loadStatus();
+  } catch (e) { toast(e.message, true); }
+};
+
+// ---------- 设定 ----------
+const OPEN_GROUPS = ['回复行为', '暂停', '表情包', '随机插话'];
+async function loadSettings() {
+  const { settings } = await api('/api/settings');
+  const groups = {};
+  for (const s of settings) (groups[s.group] ||= []).push(s);
+  const html = Object.entries(groups).map(([g, items]) => {
+    const rows = items.map((s) => {
+      const id = 'set_' + s.key;
+      let input;
+      if (s.type === 'boolean') {
+        input = `<input type="checkbox" id="${id}" ${s.value ? 'checked' : ''} ${s.readonly ? 'disabled' : ''} />`;
+      } else if (s.type === 'enum') {
+        input = `<select id="${id}" ${s.readonly ? 'disabled' : ''}>${s.options.map((o) =>
+          `<option value="${o}" ${o === s.value ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
+      } else if (s.type === 'number') {
+        input = `<input type="number" id="${id}" value="${s.value}" ${s.min !== undefined ? `min="${s.min}"` : ''} ${s.max !== undefined ? `max="${s.max}"` : ''} ${s.step ? `step="${s.step}"` : ''} ${s.readonly ? 'disabled' : ''} />`;
+      } else {
+        input = `<input type="text" id="${id}" value="${esc(s.value)}" ${s.readonly ? 'disabled' : ''} />`;
+      }
+      return `<label class="row">
+        <span class="name">${esc(s.label)}${s.overridden ? '<span class="pill">已改</span>' : ''}${s.readonly ? '<span class="pill">只读</span>' : ''}
+          <span class="hint">${esc(s.hint || '')}</span></span>
+        ${input}
+        ${s.readonly ? '' : `<button class="btn ghost" data-save="${s.key}">保存</button>`}
+      </label>`;
+    }).join('');
+    const open = OPEN_GROUPS.includes(g) ? ' open' : '';
+    return `<details class="card"${open}><summary>${esc(g)}（${items.length} 项）</summary>${rows}</details>`;
+  }).join('');
+  $('#settingsBox').innerHTML = html;
+  document.querySelectorAll('[data-save]').forEach((b) => {
+    b.onclick = async () => {
+      const key = b.dataset.save;
+      const el = document.getElementById('set_' + key);
+      const value = el.type === 'checkbox' ? el.checked : el.value;
+      try {
+        await api('/api/settings', { method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ key, value }) });
+        toast('已保存：' + key); loadSettings(); loadStatus();
+      } catch (e) { toast(e.message, true); }
+    };
+  });
+}
+
+// ---------- 人格 ----------
+async function fillChatSelect(sel, chats) {
+  sel.innerHTML = chats.map((c) => `<option value="${esc(c.chatName)}">${esc(c.chatName)}（${c.count} 条）</option>`).join('');
+}
+async function loadPersonaChats() {
+  const { chats } = await api('/api/persona');
+  const sel = $('#personaChat');
+  const cur = sel.value;
+  await fillChatSelect(sel, chats);
+  if (cur) sel.value = cur;
+  await loadPersona();
+  $('#presetRow').innerHTML = '';
+}
+async function loadPersona() {
+  const chat = $('#personaChat').value;
+  if (!chat) return;
+  const d = await api('/api/persona?chat=' + encodeURIComponent(chat));
+  const p = d.persona;
+  $('#pName').value = p.name;
+  $('#pStyle').value = p.style;
+  $('#pRules').value = (p.rules || []).join('\n');
+  $('#pTemp').value = p.temperature;
+  $('#pMax').value = p.maxChars;
+  $('#pEmoji').checked = p.emoji;
+  $('#presetRow').innerHTML = d.presets.map((x) =>
+    `<button class="btn ghost" data-preset="${esc(x)}">${esc(x)}</button>`).join('');
+  document.querySelectorAll('[data-preset]').forEach((b) => {
+    b.onclick = async () => {
+      try {
+        await api('/api/persona', { method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ chat, preset: b.dataset.preset }) });
+        toast('已切换预设：' + b.dataset.preset); loadPersona();
+      } catch (e) { toast(e.message, true); }
+    };
+  });
+}
+$('#personaChat').onchange = loadPersona;
+$('#personaReload').onclick = loadPersonaChats;
+$('#personaSave').onclick = async () => {
+  const chat = $('#personaChat').value;
+  try {
+    await api('/api/persona', { method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ chat, patch: {
+        name: $('#pName').value,
+        style: $('#pStyle').value,
+        rules: $('#pRules').value.split('\n').map((s) => s.trim()).filter(Boolean),
+        temperature: Number($('#pTemp').value),
+        maxChars: Number($('#pMax').value),
+        emoji: $('#pEmoji').checked,
+      } }) });
+    toast('人格已保存，下一条消息生效');
+  } catch (e) { toast(e.message, true); }
+};
+$('#personaReset').onclick = async () => {
+  const chat = $('#personaChat').value;
+  try {
+    await api('/api/persona', { method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ chat, preset: '__reset__' }) });
+    toast('已恢复默认人格'); loadPersona();
+  } catch (e) { toast(e.message, true); }
+};
+
+// ---------- 日志 ----------
+async function loadLogs() {
+  const level = $('#logLevel').value;
+  const d = await api('/api/logs?level=' + level + '&limit=150');
+  $('#logTable tbody').innerHTML = d.logs.map((l) => {
+    const t = new Date(l.ts).toLocaleString('zh-CN');
+    return `<tr><td class="mono">${t}</td><td class="lv-${l.level}">${l.level}</td>
+      <td class="mono">${esc(l.module)}</td><td>${esc(l.msg)}${l.meta ? '<div class="mono" style="color:var(--dim)">' + esc(l.meta) + '</div>' : ''}</td></tr>`;
+  }).join('') || '<tr><td colspan="4" class="empty">没有日志</td></tr>';
+}
+$('#logReload').onclick = loadLogs;
+$('#logLevel').onchange = loadLogs;
+
+// ---------- 记忆 ----------
+async function loadMemory() {
+  const sel = $('#memChat');
+  if (!sel.options.length) {
+    const { chats } = await api('/api/memories');
+    await fillChatSelect(sel, chats);
+  }
+  const chat = sel.value;
+  if (!chat) return;
+  const q = $('#memQuery').value.trim();
+  const d = await api('/api/memories?chat=' + encodeURIComponent(chat) + '&q=' + encodeURIComponent(q));
+  $('#memTable tbody').innerHTML = d.memories.map((m) =>
+    `<tr><td class="mono">${m.id}</td><td><span data-edit-mem="${m.id}" title="点一下可以改" style="cursor:text;border-bottom:1px dashed var(--line)">${m.pinned ? '📌 ' : ''}${esc(m.content)}</span></td>
+     <td>${Number(m.weight).toFixed(2)}</td>
+     <td><button class="btn ghost" data-pin="${m.id}" data-on="${m.pinned ? 1 : 0}">${m.pinned ? '★ 核心' : '☆ 设为核心'}</button>
+         <button class="btn ghost" data-del="${m.id}">删除</button></td></tr>`).join('')
+     || '<tr><td colspan="4" class="empty">还没有记忆</td></tr>';
+  document.querySelectorAll('[data-pin]').forEach((b) => {
+    b.onclick = async () => {
+      try {
+        await api('/api/memory/pin', { method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ id: Number(b.dataset.pin), pinned: b.dataset.on !== '1' }) });
+        toast('已更新核心记忆'); loadMemory();
+      } catch (e) { toast(e.message, true); }
+    };
+  });
+  document.querySelectorAll('[data-del]').forEach((b) => {
+    b.onclick = async () => {
+      try {
+        await api('/api/memories', { method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ chat, delete: Number(b.dataset.del) }) });
+        toast('已删除'); loadMemory();
+      } catch (e) { toast(e.message, true); }
+    };
+  });
+}
+$('#memReload').onclick = loadMemory;
+$('#memChat').onchange = loadMemory;
+$('#memAdd').onclick = async () => {
+  const chat = $('#memChat').value;
+  const content = $('#memNew').value.trim();
+  if (!content) return toast('先写点内容', true);
+  try {
+    await api('/api/memories', { method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ chat, content, pinned: true }) });
+    $('#memNew').value = '';
+    toast('已记住'); loadMemory();
+  } catch (e) { toast(e.message, true); }
+};
+
+// ---------- 日记 ----------
+async function loadDiary() {
+  const sel = $('#diaryChat');
+  if (!sel.options.length) {
+    const { chats } = await api('/api/diary');
+    await fillChatSelect(sel, chats);
+  }
+  const chat = sel.value;
+  if (!chat) return;
+  const d = await api('/api/diary?chat=' + encodeURIComponent(chat));
+  $('#diaryList').innerHTML = d.diary.length
+    ? d.diary.map((x) => `<div class="card"><h2>${x.date}</h2><div style="white-space:pre-wrap">${esc(x.content)}</div></div>`).join('')
+    : '<div class="empty">还没有日记。等记忆蒸馏跑起来后会自动生成。</div>';
+}
+$('#diaryReload').onclick = loadDiary;
+$('#diaryChat').onchange = loadDiary;
+
+
+async function loadChatUsage() {
+  try {
+    const d = await api('/api/usage/by-chat?days=7');
+    const tb = document.querySelector('#chatUsageTable tbody');
+    if (!tb) return;
+    tb.innerHTML = d.chats.map((r) => `<tr><td>${esc(r.chatId)}</td><td>${r.calls}</td><td>${r.inTokens}</td><td>${r.outTokens}</td><td>¥${r.cost.toFixed(4)}</td></tr>`).join('') +
+      `<tr style="font-weight:600"><td>合计</td><td>${d.total.calls}</td><td>${d.total.inTokens}</td><td>${d.total.outTokens}</td><td>¥${d.total.cost.toFixed(4)}</td></tr>`;
+  } catch (e) { console.warn('会话用量加载失败', e); }
+}
+
+async function loadShareCandidates() {
+  const box = document.querySelector('#shareList');
+  if (!box) return;
+  try {
+    const d = await api('/api/share/candidates');
+    if (!d.candidates.length) {
+      box.innerHTML = '<div class="empty">暂时没有待确认的共享记忆。</div>';
+      return;
+    }
+    box.innerHTML = d.candidates.map((x) => `
+      <div class="row" style="display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line)">
+        <div style="flex:1">
+          <div style="font-size:12px;color:var(--dim)">${esc(x.chatId)} · 来源 ${esc(x.source || 'chat')} · 权重 ${Number(x.weight).toFixed(2)}</div>
+          <div>${esc(x.content)}</div>
+        </div>
+        <button class="btn" data-approve="${x.id}">通过</button>
+        <button class="btn ghost" data-reject="${x.id}">不要</button>
+      </div>`).join('');
+    box.querySelectorAll('[data-approve]').forEach((b) => {
+      b.onclick = async () => {
+        await api('/api/share/decision', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: Number(b.dataset.approve), approve: true }) });
+        loadShareCandidates();
+      };
+    });
+    box.querySelectorAll('[data-reject]').forEach((b) => {
+      b.onclick = async () => {
+        await api('/api/share/decision', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: Number(b.dataset.reject), approve: false }) });
+        loadShareCandidates();
+      };
+    });
+  } catch (e) {
+    box.innerHTML = '<div class="empty">加载失败：' + esc(e.message) + '</div>';
+  }
+}
+
+async function loadActivity() {
+  const tb = document.querySelector('#activityTable tbody');
+  if (!tb) return;
+  try {
+    const d = await api('/api/stats/activity?days=7');
+    tb.innerHTML = d.byDay.map((r) => `<tr><td>${esc(r.date)}</td><td>${r.messages}</td><td>${r.replied}</td></tr>`).join('')
+      || '<tr><td colspan="3">还没有数据</td></tr>';
+  } catch (e) { console.warn('热度加载失败', e); }
+}
+
+async function applyPersonaAll() {
+  const sel = document.querySelector('#personaChat') || document.querySelector('[id$=Chat]');
+  const from = sel ? sel.value : '';
+  if (!from) return alert('先选一个来源会话');
+  if (!confirm(`把「${from}」的人格复制到所有会话？`)) return;
+  try {
+    const r = await api('/api/persona/apply-all', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ from }) });
+    alert(r.ok ? `已应用到 ${r.applied} 个会话` : '失败：' + (r.error || ''));
+  } catch (e) { alert('失败：' + e.message); }
+}
+
+const applyBtn = document.querySelector('#personaApplyAll');
+if (applyBtn) applyBtn.onclick = applyPersonaAll;
+
+// 记忆内容点击可编辑
+document.addEventListener('click', async (ev) => {
+  const el = ev.target.closest('[data-edit-mem]');
+  if (!el) return;
+  const id = Number(el.dataset.editMem);
+  const old = el.textContent;
+  const next = prompt('修改这条记忆：', old);
+  if (next === null || next.trim() === old.trim()) return;
+  try {
+    const r = await api('/api/memory/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, content: next.trim() }),
+    });
+    if (r.ok) {
+      el.textContent = next.trim();
+    } else {
+      alert('保存失败');
+    }
+  } catch (e) {
+    alert('保存失败：' + e.message);
+  }
+});
+
+const whaleBtn = document.querySelector('#btnSyncWhale');
+if (whaleBtn) {
+  whaleBtn.onclick = async () => {
+    whaleBtn.disabled = true;
+    whaleBtn.textContent = '同步中…';
+    try {
+      const r = await api('/api/sync/whale', { method: 'POST' });
+      alert(r.log || (r.ok ? '完成' : '失败'));
+      loadShareCandidates();
+    } catch (e) {
+      alert('失败：' + e.message);
+    } finally {
+      whaleBtn.disabled = false;
+      whaleBtn.textContent = '同步养鱼日记';
+    }
+  };
+}
+// ---------- 表情包 ----------
+async function loadStickers() {
+  const grid = document.querySelector('#stickerGrid');
+  const stats = document.querySelector('#stickerStats');
+  if (!grid) return;
+  try {
+    const d = await api('/api/stickers');
+    if (stats) stats.textContent = `共 ${d.stats.count} 张 · ${(d.stats.bytes / 1048576).toFixed(1)} MB · 回收站 ${d.stats.trash}`;
+    grid.innerHTML = d.stickers.map((s) => `
+      <div style="position:relative;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#111">
+        <img src="/stickers/${encodeURIComponent(s.name)}" style="width:100%;height:96px;object-fit:contain;display:block" loading="lazy" />
+        <label style="position:absolute;top:2px;left:2px;background:rgba(0,0,0,.6);border-radius:4px;padding:0 4px;cursor:pointer">
+          <input type="checkbox" class="sticker-pick" value="${esc(s.name)}" style="margin:0" />
+        </label>
+        <button class="btn ghost" data-del-sticker="${esc(s.name)}"
+          style="position:absolute;top:2px;right:2px;padding:0 6px;font-size:12px;line-height:18px">×</button>
+      </div>`).join('') || '<div class="empty">图库是空的</div>';
+    grid.querySelectorAll('[data-del-sticker]').forEach((b) => {
+      b.onclick = async () => {
+        if (!confirm('删掉这张？（会进回收站）')) return;
+        await api('/api/stickers/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: b.dataset.delSticker }),
+        });
+        loadStickers();
+      };
+    });
+    const trash = document.querySelector('#stickerTrash');
+    if (trash) {
+      trash.innerHTML = d.trash.length
+        ? d.trash.map((t) => `<span style="display:inline-block;margin:4px 8px 4px 0">${esc(t.name)} <a href="#" data-restore="${esc(t.name)}">恢复</a></span>`).join('')
+        : '（空）';
+      trash.querySelectorAll('[data-restore]').forEach((a) => {
+        a.onclick = async (ev) => {
+          ev.preventDefault();
+          await api('/api/stickers/restore', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: a.dataset.restore }),
+          });
+          loadStickers();
+        };
+      });
+    }
+  } catch (e) {
+    grid.innerHTML = '<div class="empty">加载失败：' + esc(e.message) + '</div>';
+  }
+}
+
+const stickerUploadBtn = document.querySelector('#stickerUploadBtn');
+const stickerFileInput = document.querySelector('#stickerFile');
+if (stickerUploadBtn && stickerFileInput) {
+  stickerUploadBtn.onclick = () => stickerFileInput.click();
+  stickerFileInput.onchange = async () => {
+    const files = [...stickerFileInput.files];
+    let ok = 0;
+    for (const f of files) {
+      const buf = await f.arrayBuffer();
+      const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+      const r = await api('/api/stickers/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base64: b64 }),
+      });
+      if (r.ok) ok++;
+    }
+    stickerFileInput.value = '';
+    alert(`成功加入 ${ok} / ${files.length} 张`);
+    loadStickers();
+  };
+}
+
+// 批量选择
+function stickerPicked() {
+  return [...document.querySelectorAll('.sticker-pick:checked')].map((x) => x.value);
+}
+function updateStickerSelInfo() {
+  const n = stickerPicked().length;
+  const el = document.querySelector('#stickerSelInfo');
+  if (el) el.textContent = n ? `已选中 ${n} 张` : '勾选图片可批量删除';
+}
+document.addEventListener('change', (ev) => {
+  if (ev.target.classList && ev.target.classList.contains('sticker-pick')) updateStickerSelInfo();
+});
+const selAllBtn = document.querySelector('#stickerSelectAll');
+if (selAllBtn) selAllBtn.onclick = () => {
+  document.querySelectorAll('.sticker-pick').forEach((x) => (x.checked = true));
+  updateStickerSelInfo();
+};
+const clearSelBtn = document.querySelector('#stickerClearSel');
+if (clearSelBtn) clearSelBtn.onclick = () => {
+  document.querySelectorAll('.sticker-pick').forEach((x) => (x.checked = false));
+  updateStickerSelInfo();
+};
+const delSelBtn = document.querySelector('#stickerDeleteSel');
+if (delSelBtn) delSelBtn.onclick = async () => {
+  const names = stickerPicked();
+  if (!names.length) return alert('还没勾选');
+  if (!confirm(`删除选中的 ${names.length} 张？（进回收站，可恢复）`)) return;
+  const r = await api('/api/stickers/delete-many', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ names }),
+  });
+  alert(`已删除 ${r.deleted} / ${r.total} 张`);
+  loadStickers();
+};
+
+const stickerReloadBtn = document.querySelector('#stickerReload');
+if (stickerReloadBtn) stickerReloadBtn.onclick = loadStickers;
+
+// ---------- 调试 ----------
+let dbgChatsLoaded = false;
+async function loadDebug() {
+  if (!dbgChatsLoaded) {
+    try {
+      const { chats } = await api('/api/memories');
+      const sel = $('#dbgChat');
+      sel.innerHTML = chats.map((c) => `<option value="${esc(c.chatName)}">${esc(c.chatName)}</option>`).join('');
+      dbgChatsLoaded = true;
+    } catch (e) { /* ignore */ }
+  }
+  loadBridge();
+}
+
+async function loadBridge() {
+  try {
+    const d = await api('/api/bridge');
+    $('#bridgeBox').textContent = JSON.stringify(d, null, 1).slice(0, 3000);
+  } catch (e) {
+    $('#bridgeBox').textContent = '桥接状态获取失败：' + e.message;
+  }
+}
+
+function dbgSay(msg, bad) {
+  const el = $('#dbgResult');
+  el.textContent = msg;
+  el.style.color = bad ? 'var(--err)' : 'var(--ok)';
+}
+
+async function dbgPost(path, extra) {
+  const chat = $('#dbgChat').value;
+  if (!chat) return dbgSay('先选一个群', true);
+  try {
+    const body = Object.assign({ chat }, extra || {});
+    const r = await api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    dbgSay('成功：' + JSON.stringify(r).slice(0, 200));
+    loadBridge();
+  } catch (e) {
+    dbgSay('失败：' + e.message, true);
+  }
+}
+
+$('#dbgSend').onclick = () => {
+  const text = $('#dbgText').value.trim();
+  if (!text) return dbgSay('先输入文字', true);
+  dbgPost('/api/test/send', { text });
+};
+$('#dbgVoice').onclick = () => dbgPost('/api/test/voice', { text: $('#dbgText').value.trim() });
+$('#dbgSticker').onclick = () => dbgPost('/api/test/sticker');
+$('#dbgBrowse').onclick = () => dbgPost('/api/test/browse');
+$('#dbgSyncBili').onclick = async () => {
+  const chat = $('#dbgChat').value;
+  dbgSay('正在同步 B 站信笺…');
+  try {
+    const r = await api('/api/sync/bili', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat: chat || '' }),
+    });
+    dbgSay(r.log || '完成');
+  } catch (e) {
+    dbgSay('同步失败：' + e.message, true);
+  }
+};
+
+$('#dbgRefresh').onclick = loadBridge;
+
+// ---------- 启动 ----------
+window.addEventListener('error', (e) => {
+  const bar = document.createElement('div');
+  bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;background:#7f1d1d;color:#fff;padding:8px 12px;font:13px/1.5 system-ui;z-index:9999';
+  bar.textContent = '页面脚本出错：' + (e.message || e.error) + '（按 Ctrl+F5 强制刷新）';
+  document.body.appendChild(bar);
+});
+
+function safe(fn) {
+  try {
+    const r = fn();
+    if (r && typeof r.catch === 'function') r.catch((err) => console.warn('加载失败', err));
+  } catch (err) {
+    console.warn('加载失败', err);
+  }
+}
+
+safe(loadStatus);
+safe(loadQuickSwitches);
+safe(loadUsage);
+safe(loadChatUsage);
+safe(loadActivity);
+setInterval(() => {
+  safe(loadStatus);
+  safe(loadUsage);
+}, 8000);
+</script>
+</body>
+</html>
